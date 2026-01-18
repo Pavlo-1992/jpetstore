@@ -1,0 +1,63 @@
+- name: Docker build and push
+  hosts: local
+  become: yes
+
+  vars:
+    dockerhub_username: savanchukpavlo
+    dockerhub_image: petstore
+    dockerhub_tag: latest
+    dockerhub_password: "{{ lookup('env', 'DOCKER_HUB_PASSWORD') }}"
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Remove containerd conflict
+      apt:
+        name: containerd
+        state: absent
+      ignore_errors: yes
+
+    - name: Install Docker via official script
+      shell: |
+        curl -fsSL https://get.docker.com -o get-docker.sh
+        sh get-docker.sh
+      args:
+        creates: /usr/bin/docker
+
+    - name: Add ubuntu to docker group
+      user:
+        name: ubuntu
+        groups: docker
+        append: yes
+
+    - name: Clone project
+      git:
+        repo: https://github.com/Pavlo-1992/jpetstore-6
+        dest: /home/ubuntu/petstore
+        version: master
+        force: yes
+
+    - name: Build Docker image
+      command: docker build -t {{ dockerhub_image }} .
+      args:
+        chdir: /home/ubuntu/petstore
+
+    - name: Tag image
+      command: docker tag {{ dockerhub_image }}:{{ dockerhub_tag }} {{ dockerhub_username }}/{{ dockerhub_image }}:{{ dockerhub_tag }}
+
+    - name: Login to Docker Hub
+      community.docker.docker_login:
+        username: "{{ dockerhub_username }}"
+        password: "{{ dockerhub_password }}"
+
+    - name: Push image
+      command: docker push {{ dockerhub_username }}/{{ dockerhub_image }}:{{ dockerhub_tag }}
+
+    - name: Remove old container
+      command: docker rm -f pet1
+      ignore_errors: yes
+
+    - name: Run new container
+      command: docker run -d --name pet1 -p 8081:8080 {{ dockerhub_username }}/{{ dockerhub_image }}:{{ dockerhub_tag }}
