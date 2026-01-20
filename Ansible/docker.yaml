@@ -3,10 +3,10 @@
   become: yes
 
   vars:
-    dockerhub_username: savanchukpavlo
+    dockerhub_username: "{{ dockerhub_username }}"
+    dockerhub_password: "{{ dockerhub_password }}"
     dockerhub_image: petstore
     dockerhub_tag: latest
-    dockerhub_password: "{{ lookup('env', 'DOCKER_HUB_PASSWORD') }}"
 
   tasks:
     - name: Clone project
