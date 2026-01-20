@@ -9,34 +9,6 @@
     dockerhub_password: "{{ lookup('env', 'DOCKER_HUB_PASSWORD') }}"
 
   tasks:
-    - name: Update apt cache
-      apt:
-        update_cache: yes
-
-    - name: Remove containerd conflict
-      apt:
-        name: containerd
-        state: absent
-      ignore_errors: yes
-
-    - name: Install Docker via official script
-      shell: |
-        curl -fsSL https://get.docker.com -o get-docker.sh
-        sh get-docker.sh
-      args:
-        creates: /usr/bin/docker
-
-    - name: Add ubuntu user to docker group
-      user:
-        name: ubuntu
-        groups: docker
-        append: yes
-
-    - name: Restart Docker service
-      service:
-        name: docker
-        state: restarted
-
     - name: Clone project
       git:
         repo: https://github.com/Pavlo-1992/jpetstore-6
@@ -59,7 +31,7 @@
           path: /home/ubuntu/petstore
         push: true
 
-    - name: Remove old container
+    - name: Remove old container (if exists)
       community.docker.docker_container:
         name: pet1
         state: absent
