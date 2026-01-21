@@ -186,7 +186,7 @@ sudo cat /var/lib/jenkins/secrets/initialAdminPassword
 # change the password once you set up jenkins server
 ```
 Install suggested plugins and creat user.
-screen!!!!!!!!!!!!!!
+![test](screen/test.PNG)
 After the docker installation, we create a SonarQube container:
 ```
 docker run -d --name sonar -p 9000:9000 sonarqube:lts-community
