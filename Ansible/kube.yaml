@@ -1,15 +1,23 @@
 ---
 - name: Deploy Kubernetes Application
-  hosts: k8s  # Replace with your target Kubernetes master host or group
-  gather_facts: yes  # Gather facts about the target host
+  hosts: k8s
+  become: yes
+  gather_facts: yes
+
+  vars:
+    kube_manifest_path: /home/ubuntu/deployment.yaml
 
   tasks:
+
     - name: Copy deployment.yaml to Kubernetes master
       copy:
-        src: /var/lib/jenkins/workspace/petstore/deployment.yaml  # Assuming Jenkins workspace variable
-        dest: /home/ubuntu/
-      become: yes  # Use sudo for copying if required
-      become_user: root  # Use a privileged user for copying if required
+        src: ../deployment.yaml
+        dest: "{{ kube_manifest_path }}"
+        owner: ubuntu
+        group: ubuntu
+        mode: '0644'
 
-    - name: Apply Deployment
-      command: kubectl apply -f /home/ubuntu/deployment.yaml
+    - name: Apply Kubernetes manifest
+      command: kubectl apply -f "{{ kube_manifest_path }}"
+      environment:
+        KUBECONFIG: /home/ubuntu/.kube/config
