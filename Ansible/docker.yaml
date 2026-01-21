@@ -11,7 +11,7 @@
   tasks:
     - name: Clone project
       git:
-        repo: https://github.com/Pavlo-1992/jpetstore-6
+        repo: https://github.com/Pavlo-1992/jpetstore
         dest: /home/ubuntu/petstore
         version: master
         force: yes
