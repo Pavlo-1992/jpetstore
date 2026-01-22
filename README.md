@@ -689,15 +689,15 @@ minikube start
 
 Now run this commands in both master and worker node:
 '''
-# 0. System update
+#System update
 sudo apt-get update
 
-# 1. Disable SWAP (CRITICAL, BEFORE kubeadm)
+#Disable SWAP (CRITICAL, BEFORE kubeadm)
 sudo swapoff -a
 sudo sed -i '/ swap / s/^/#/' /etc/fstab
 
-# 2. Configure kernel modules and sysctl (BEFORE containerd)
-# 2.1. Kernel modules
+#Configure kernel modules and sysctl (BEFORE containerd)
+#Kernel modules
 sudo apt install -y linux-modules-extra-$(uname -r)
 
 cat <<EOF | sudo tee /etc/modules-load.d/k8s.conf
@@ -706,7 +706,7 @@ EOF
 
 sudo modprobe br_netfilter
 
-# 2.2. Sysctl
+#Sysctl
 cat <<EOF | sudo tee /etc/sysctl.d/99-kubernetes.conf
 net.bridge.bridge-nf-call-iptables=1
 net.bridge.bridge-nf-call-ip6tables=1
@@ -715,26 +715,26 @@ EOF
 
 sudo sysctl --system
 
-# 3. Install containerd (RECOMMENDED separately from Docker)
-# ❗ Docker is NOT REQUIRED for Kubernetes
+#Install containerd (RECOMMENDED separately from Docker)
+#Docker is NOT REQUIRED for Kubernetes
 sudo apt install -y containerd
 
-# 3.1. Generate and fix config.toml
+#Generate and fix config.toml
 sudo mkdir -p /etc/containerd
 containerd config default | sudo tee /etc/containerd/config.toml
 
-# Open the file:
-# sudo vi /etc/containerd/config.toml
+#Open the file:
+ sudo vi /etc/containerd/config.toml
 # Ensure SystemdCgroup is set to true:
 # [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
 # SystemdCgroup = true
 
-# 3.2. Restart and enable containerd
+#Restart and enable containerd
 sudo systemctl restart containerd
 sudo systemctl enable containerd
 sudo systemctl status containerd
 
-# 4. Configure crictl (IMPORTANT)
+#Configure crictl (IMPORTANT)
 sudo tee /etc/crictl.yaml <<EOF
 runtime-endpoint: unix:///run/containerd/containerd.sock
 image-endpoint: unix:///run/containerd/containerd.sock
@@ -742,8 +742,8 @@ timeout: 10
 debug: false
 EOF
 
-# 5. Install Kubernetes components (kubeadm, kubelet, kubectl)
-# 5.1. Add official repository
+#Install Kubernetes components (kubeadm, kubelet, kubectl)
+# Add official repository
 sudo mkdir -p /etc/apt/keyrings
 curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.28/deb/Release.key | \
   sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
@@ -752,28 +752,28 @@ echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] \
 https://pkgs.k8s.io/core:/stable:/v1.28/deb/ /" | \
 sudo tee /etc/apt/sources.list.d/kubernetes.list
 
-# 5.2. Install packages
+#Install packages
 sudo apt update
 sudo apt install -y kubelet kubeadm kubectl
 sudo apt-mark hold kubelet kubeadm kubectl
 
-# 6. Reboot (RECOMMENDED)
+#Reboot (RECOMMENDED)
 sudo reboot
 
-# 🔴 ALL COMMANDS BELOW SHOULD BE EXECUTED AFTER REBOOT (ON MASTER NODE)
+#ALL COMMANDS BELOW SHOULD BE EXECUTED AFTER REBOOT (ON MASTER NODE)
 
-# 7. Initialize control-plane
+#Initialize control-plane
 sudo kubeadm init \
   --pod-network-cidr=10.244.0.0/16 \
   --apiserver-advertise-address=172.31.41.84 \
   --cri-socket=unix:///run/containerd/containerd.sock
 
-# 8. Configure kubectl (Non-root user)
+#Configure kubectl (Non-root user)
 mkdir -p $HOME/.kube
 sudo cp /etc/kubernetes/admin.conf $HOME/.kube/config
 sudo chown $(id -u):$(id -g) $HOME/.kube/config
 
-# Verification
+#Verification
 ```
 In worker instance:
 ```
