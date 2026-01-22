@@ -609,16 +609,14 @@ pipeline {
 }
 ```
 
-Now after build process of the pipeline you would be able to see the result of web application by visiting the below url:
-
-jenkins-ip:8081>
+Now after build process of the pipeline you would be able to see the result of web application by visiting the below url <jenkins-ip:8081>
 
 ![jpetstore](screen/jpetstore.jpg)  
 
 Step 8: Kubernetes Setup
 ------------------------
 Create two instance for Kubernetes Master-Slave set up, you can use the below terraform code:
-'''
+```
 provider "aws" {
   region = "eu-central-1" # Specify the region
 }
@@ -656,7 +654,7 @@ resource "aws_instance" "my_ec2_instance2" {
     Name = "k8s-slave"
   }
 }
-'''
+```
 
 Install Kubectl and Minikube on Jenkins machine:
 ```
