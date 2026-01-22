@@ -171,18 +171,17 @@ sudo reboot
 Since Apache Maven’s default proxy is 8080, we need to change the port of Jenkins from 8080 to let’s say 8090, for that:
 ```
 sudo systemctl stop jenkins
-cd /etc/default
-sudo vi jenkins   #chnage port HTTP_PORT=8090 and save and exit
+sudo vi /etc/default/jenkins #chnage port HTTP_PORT=8090 and save and exit
 ```
 ```
-cd /lib/systemd/system
-sudo vi jenkins.service  #change Environments="Jenkins_port=8090" save and exit
+sudo vi /lib/systemd/system/jenkins.service 
+#change Environments="Jenkins_port=8090" save and exit
 ```
 ```
 sudo systemctl daemon-reload
 sudo systemctl restart jenkins
 ```
-Now, go to <EC2_Public_IP:8090>
+Now, go to http://<EC2_Public_IP:8090>
 ```
 # for jenkins password
 sudo cat /var/lib/jenkins/secrets/initialAdminPassword
@@ -344,8 +343,7 @@ Apply, save and build. Now, go to your SonarQube Server and go to project and se
 
 Step 5: Install OWASP Dependency Check Plugins
 ----------------------------------------------
-Go to the Jenkins Dashboard, then click on Manage Jenkins → Plugins. Find the OWASP Dependency-Check plugin, click on it, and install it.
-After installing the plugin, proceed to configure the tool by navigating to Dashboard → Manage Jenkins → Tools →.
+Proceed to configure the tool by navigating to Dashboard → Manage Jenkins → Tools →.
 
 ![Dp_Check](screen/DP_Check.jpg)
 
@@ -451,7 +449,7 @@ Add DockerHub Username and Password (Access Token) in Global Credentials:
 
 ![docker_creds](screen/docker_creds.jpg)
 
-Step 7: Adding Ansible Repository and Install Ansible
+Step 7: Adding Ansible Repository and Install Ansible.
 -----------------------------------------------------
 Connect to your instance via SSH and run this commands, to install Ansible on your server:
 ```
@@ -461,7 +459,7 @@ sudo add-apt-repository --yes --update ppa:ansible/ansible
 sudo apt install ansible -y
 sudo apt install ansible-core -y
 ```
-To add inventory you can create a new directory or add in the default Ansible hosts file
+To add inventory you can create a new directory or add in the default Ansible hosts file:
 ```
 cd /etc/ansible
 sudo vi hosts
@@ -470,11 +468,11 @@ sudo vi hosts
 [local]
 <Public_IP_Jenkins> ansible_user=ubuntu
 ```
-save and exit.
+Save and exit.
 
 Install Ansible Plugins by navigating to Manage Jenkins -> Available Plugins.
 
-In Ansible server generete ssh-key:
+In Jenkins generete ssh-key:
 ```
 cd ~/.ssh/
 sudo ssh-keygen -t rsa -b 2048 -f jpetstore_rsa
@@ -611,7 +609,7 @@ pipeline {
 
 Now after build process of the pipeline you would be able to see the result of web application by visiting the below url <jenkins-ip:8081>
 
-![jpetstore](screen/jpetstore.jpg)  
+![jpetstore_jenkins](screen/jpetstore_jenkins.jpg)  
 
 Step 8: Kubernetes Setup
 ------------------------
@@ -662,14 +660,8 @@ Install Kubectl and Minikube on Jenkins machine:
 sudo apt-get update 
 sudo apt-get install -y ca-certificates curl gnupg lsb-release
 
-#Removing old Kubernetes repository (if exists)
-sudo rm -f /etc/apt/sources.list.d/kubernetes.list
-
 #Installing kubectl via snap
 sudo snap install kubectl --classic
-
-#Checking kubectl installation
-kubectl version --client
 
 #Installing Minikube
 curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64 
@@ -752,13 +744,14 @@ sudo apt-mark hold kubelet kubeadm kubectl
 
 #Reboot (RECOMMENDED)
 sudo reboot
-
+```
 #ALL COMMANDS BELOW SHOULD BE EXECUTED AFTER REBOOT (ON MASTER NODE)
-
+--------------------------------------------------------------------
+```
 #Initialize control-plane
 sudo kubeadm init \
   --pod-network-cidr=10.244.0.0/16 \
-  --apiserver-advertise-address=172.31.41.84 \
+  --apiserver-advertise-address=<Private_ip_woker_node> \
   --cri-socket=unix:///run/containerd/containerd.sock
 
 #Configure kubectl (Non-root user)
@@ -771,8 +764,14 @@ sudo chown $(id -u):$(id -g) $HOME/.kube/config
 In worker instance:
 -------------------
 ```
-sudo kubeadm join 172.31.41.84:6443 --token qke2uv.ru6sgn0kz5poj9o8 --discovery-token-ca-cert-hash sha256:0564ad3c998f9495b39958522ac3ed053e9b663f44a6ac2ec06d5315413345f2
+sudo kubeadm join <master-node-ip>:<master-node-port> --token <token> --discovery-token-ca-cert-hash <hash>
 ```
+On master instanse:
+```
+kubectl get node
+```
+We have to get:
+![nodes](screen/nodes.jpg) 
 
 Copy the config file from master node to Jenkins machine or the local file manager and save it, you can find it in master node by:
 ```
@@ -780,10 +779,14 @@ cat ~/.kube/config
 ```
 Copy it and save it in documents or another folder save it as secret-file.txt.
 
+Install k8s plugins in jenkin:
+![k8s](screen/k8s.jpg)
+
 Now, go to Manage Jenkins –> Credentials –>System–> Global Credential–> Add Credentials
+![k8s_creds](screen/k8s_creeds.jpg)
 
 Step 9: Master-Slave Setup for Ansible and Kubernetes
--------------------
+-----------------------------------------------------
 To enable communication with the Kubernetes clients, we need to create an SSH key on the Ansible node and share it with the Kubernetes master system.
 On main (on which we are running jenkins, not the master-worker) instance:
 
@@ -806,11 +809,17 @@ ssh ubuntu@<public-ip-k8s-master>  #from Jenkins Machine
 
 Now, open the hosts file on the Jenkins Machine and add the public IP of the Kubernetes master.
 ```
+sudo vi /etc/ansible/hosts
 [k8s]
 public ip of k8s-master ansible_user=ubuntu
 ```
+Test Ansible Master Slave Connection
+```
+ansible -m ping all #on jenkins instance
+```
 
-Add pipeline and build the job:
+Add finaly pipeline and build the job:
+```
 pipeline {
     agent any
 
@@ -920,7 +929,7 @@ pipeline {
                             credentialsId: 'ssh',
                             disableHostKeyChecking: true,
                             installation: 'ansible',
-                            inventory: '/etc/ansible/',
+                            inventory: '/etc/ansible/hosts',
                             playbook: 'kube.yaml'
                         )
                     }
@@ -930,14 +939,12 @@ pipeline {
 
     }
 }
-
+```
 In the Kubernetes cluster give this command:
 ```
 kubectl get all
 kubectl get svc
 ```
-kubectl get all
-kubectl get svc
+<public_worker_ip:serviceport>/jpetstore>
 ```
-<worker-ip:serviceport>/jpetstore>
-```
+![k8s_creds](screen/k8s_creeds.jpg)
