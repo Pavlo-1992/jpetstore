@@ -784,8 +784,6 @@ Copy it and save it in documents or another folder save it as secret-file.txt.
 
 
 
-
-
 Essentials
 ----------
 
