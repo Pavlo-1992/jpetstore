@@ -263,7 +263,7 @@ Go to the Jenkins Dashboard, then navigate to Manage Jenkins → Credentials →
 
 Next, go to the Jenkins Dashboard, then navigate to Manage Jenkins → System, and add the necessary configuration as shown in the image below.
 
-![sonar_server](sonar_server.jpg)
+![sonar_server](screen/sonar_server.jpg)  
 
 Click on apply and save
 Now, we will install a sonar scanner in the tools.
@@ -436,7 +436,7 @@ pipeline {
 ```
 You can see the report:
 
-![DP_Check_results](screen/DP_Check_results.jpg) !!!!!!!!!!!!!!!!!!!!!!!!!
+![DP_Check_results](screen/DP_Check_results.jpg)
 
 Step 6: Docker Set-up
 ---------------------
