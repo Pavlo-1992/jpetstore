@@ -688,7 +688,7 @@ minikube start
 ```
 
 Now run this commands in both master and worker node:
-'''
+```
 #System update
 sudo apt-get update
 
@@ -725,9 +725,9 @@ containerd config default | sudo tee /etc/containerd/config.toml
 
 #Open the file:
  sudo vi /etc/containerd/config.toml
-# Ensure SystemdCgroup is set to true:
-# [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
-# SystemdCgroup = true
+#Ensure SystemdCgroup is set to true:
+#[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
+#SystemdCgroup = true
 
 #Restart and enable containerd
 sudo systemctl restart containerd
@@ -743,7 +743,7 @@ debug: false
 EOF
 
 #Install Kubernetes components (kubeadm, kubelet, kubectl)
-# Add official repository
+#Аdd official repository
 sudo mkdir -p /etc/apt/keyrings
 curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.28/deb/Release.key | \
   sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
