@@ -651,39 +651,32 @@ resource "aws_instance" "my_ec2_instance2" {
   }
 
   tags = {
-    Name = "k8s-slave"
+    Name = "k8s-worker"
   }
 }
 ```
 
 Install Kubectl and Minikube on Jenkins machine:
 ```
-# Install required packages
-sudo apt-get update
-sudo apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
+#System update and installation of utilities
+sudo apt-get update 
+sudo apt-get install -y ca-certificates curl gnupg lsb-release
 
-# Add Kubernetes GPG key (modern method)
-sudo mkdir -p /etc/apt/keyrings
-curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | \
-  gpg --dearmor | sudo tee /etc/apt/keyrings/kubernetes-archive-keyring.gpg > /dev/null
+#Removing old Kubernetes repository (if exists)
+sudo rm -f /etc/apt/sources.list.d/kubernetes.list
 
-# Add Kubernetes repository (compatible with various Ubuntu versions)
-echo "deb [signed-by=/etc/apt/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" | \
-  sudo tee /etc/apt/sources.list.d/kubernetes.list
+#Installing kubectl via snap
+sudo snap install kubectl --classic
 
-# Update package list and install kubectl
-sudo apt-get update
-sudo apt-get install -y kubectl
-
-# Verify installation
+#Checking kubectl installation
 kubectl version --client
 
-# Install Minikube
-curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
-sudo install minikube-linux-amd64 /usr/local/bin/minikube
+#Installing Minikube
+curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64 
+sudo install minikube-linux-amd64 /usr/local/bin/minikube 
 rm minikube-linux-amd64
 
-# Start Minikube
+#Starting Minikube
 minikube start
 ```
 
@@ -776,10 +769,16 @@ sudo chown $(id -u):$(id -g) $HOME/.kube/config
 #Verification
 ```
 In worker instance:
+-------------------
 ```
 sudo kubeadm join 172.31.41.84:6443 --token qke2uv.ru6sgn0kz5poj9o8 --discovery-token-ca-cert-hash sha256:0564ad3c998f9495b39958522ac3ed053e9b663f44a6ac2ec06d5315413345f2
 ```
 
+Copy the config file to Jenkins master or the local file manager and save it, you can find it in master node by:
+```
+cat ~/.kube/config
+```
+Copy it and save it in documents or another folder save it as secret-file.txt.
 
 
 
