@@ -774,85 +774,170 @@ In worker instance:
 sudo kubeadm join 172.31.41.84:6443 --token qke2uv.ru6sgn0kz5poj9o8 --discovery-token-ca-cert-hash sha256:0564ad3c998f9495b39958522ac3ed053e9b663f44a6ac2ec06d5315413345f2
 ```
 
-Copy the config file to Jenkins master or the local file manager and save it, you can find it in master node by:
+Copy the config file from master node to Jenkins machine or the local file manager and save it, you can find it in master node by:
 ```
 cat ~/.kube/config
 ```
 Copy it and save it in documents or another folder save it as secret-file.txt.
 
+Now, go to Manage Jenkins –> Credentials –>System–> Global Credential–> Add Credentials
 
-
-
-
-Essentials
-----------
-
-* [See the docs](http://www.mybatis.org/jpetstore-6)
-
-## Other versions that you may want to know about
-
-- JPetstore on top of Spring, Spring MVC, MyBatis 3, and Spring Security https://github.com/making/spring-jpetstore
-- JPetstore with Vaadin and Spring Boot with Java Config https://github.com/igor-baiborodine/jpetstore-6-vaadin-spring-boot
-- JPetstore on MyBatis Spring Boot Starter https://github.com/kazuki43zoo/mybatis-spring-boot-jpetstore
-
-## Run on Application Server
-Running JPetStore sample under Tomcat (using the [cargo-maven2-plugin](https://codehaus-cargo.github.io/cargo/Maven2+plugin.html)).
-
-- Clone this repository
-
-  ```
-  $ git clone https://github.com/mybatis/jpetstore-6.git
-  ```
-
-- Build war file
-
-  ```
-  $ cd jpetstore-6
-  $ ./mvnw clean package
-  ```
-
-- Startup the Tomcat server and deploy web application
-
-  ```
-  $ ./mvnw cargo:run -P tomcat90
-  ```
-
-  > Note:
-  >
-  > We provide maven profiles per application server as follow:
-  >
-  > | Profile        | Description |
-  > | -------------- | ----------- |
-  > | tomcat90       | Running under the Tomcat 9.0 |
-  > | tomcat85       | Running under the Tomcat 8.5 |
-  > | tomee80        | Running under the TomEE 8.0(Java EE 8) |
-  > | tomee71        | Running under the TomEE 7.1(Java EE 7) |
-  > | wildfly26      | Running under the WildFly 26(Java EE 8) |
-  > | wildfly13      | Running under the WildFly 13(Java EE 7) |
-  > | liberty-ee8    | Running under the WebSphere Liberty(Java EE 8) |
-  > | liberty-ee7    | Running under the WebSphere Liberty(Java EE 7) |
-  > | jetty          | Running under the Jetty 9 |
-  > | glassfish5     | Running under the GlassFish 5(Java EE 8) |
-  > | glassfish4     | Running under the GlassFish 4(Java EE 7) |
-  > | resin          | Running under the Resin 4 |
-
-- Run application in browser http://localhost:8080/jpetstore/ 
-- Press Ctrl-C to stop the server.
-
-## Run on Docker
-```
-docker build . -t jpetstore
-docker run -p 8080:8080 jpetstore
-```
-or with Docker Compose:
-```
-docker compose up -d
-```
-
-## Try integration tests
-
-Perform integration tests for screen transition.
+Step 9: Master-Slave Setup for Ansible and Kubernetes
+-------------------
+To enable communication with the Kubernetes clients, we need to create an SSH key on the Ansible node and share it with the Kubernetes master system.
+On main (on which we are running jenkins, not the master-worker) instance:
 
 ```
-$ ./mvnw clean verify -P tomcat90
+cd ~/.ssh
+ssh-keygen
+cat id_ed25519.pub
+```
+After copying the public key from the Jenkins Machine, navigate to the .ssh directory on the Kubernetes master machine and paste the copied public key into the authorized_keys file.
+```
+cd .ssh #on k8s master 
+sudo vi authorized_keys
+```
+Note: Add the copied public key as a new line in the authorized_keys file without deleting any existing keys, then save and exit.
+
+By adding the public key from the main to the Kubernetes machine, keyless access is now configured. To verify, try accessing the Kubernetes master using the following command format.
+```
+ssh ubuntu@<public-ip-k8s-master>  #from Jenkins Machine
+```
+
+Now, open the hosts file on the Jenkins Machine and add the public IP of the Kubernetes master.
+```
+[k8s]
+public ip of k8s-master ansible_user=ubuntu
+```
+
+Add pipeline and build the job:
+pipeline {
+    agent any
+
+    tools {
+        jdk 'jdk17'
+        maven 'maven3'
+    }
+
+    environment {
+        SCANNER_HOME = tool 'sonar-scanner'
+    }
+
+    stages {
+
+        stage('Clean Workspace') {
+            steps {
+                cleanWs()
+            }
+        }
+
+        stage('Checkout SCM') {
+            steps {
+                git 'https://github.com/Pavlo-1992/jpetstore'
+            }
+        }
+
+        stage('Maven Compile') {
+            steps {
+                sh 'mvn clean compile'
+            }
+        }
+
+        stage('Maven Test') {
+            steps {
+                sh 'mvn test'
+            }
+        }
+
+        stage('Build WAR') {
+            steps {
+                sh 'mvn clean install -DskipTests=true'
+            }
+        }
+
+        stage('Sonarqube Analysis') {
+            steps {
+                withSonarQubeEnv('sonar-server') {
+                    sh '''
+                        $SCANNER_HOME/bin/sonar-scanner \
+                        -Dsonar.projectName=Petshop \
+                        -Dsonar.projectKey=Petshop \
+                        -Dsonar.java.binaries=.
+                    '''
+                }
+            }
+        }
+
+        stage('Quality Gate') {
+            steps {
+                waitForQualityGate abortPipeline: false, credentialsId: 'Sonar-token'
+            }
+        }
+
+        stage('OWASP Dependency Check') {
+            steps {
+                withCredentials([string(credentialsId: 'NVD_API_KEY', variable: 'NVD_API_KEY')]) {
+                    dependencyCheck(
+                        additionalArguments: "--scan ./ --format XML --nvdApiKey ${NVD_API_KEY}",
+                        odcInstallation: 'DP-Check'
+                    )
+                    dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+                }
+            }
+        }
+
+        stage('Install Docker (Ansible)') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'DOCKER_HUB_CREDENTIALS',
+                        usernameVariable: 'DOCKER_HUB_USERNAME',
+                        passwordVariable: 'DOCKER_HUB_PASSWORD'
+                    )
+                ]) {
+                    dir('Ansible') {
+                        ansiblePlaybook(
+                            installation: 'ansible',
+                            playbook: 'docker.yaml',
+                            inventory: '/etc/ansible/hosts',
+                            disableHostKeyChecking: true,
+                            credentialsId: 'ssh',
+                            extraVars: [
+                                dockerhub_username: "${DOCKER_HUB_USERNAME}",
+                                dockerhub_password: "${DOCKER_HUB_PASSWORD}"
+                            ]
+                        )
+                    }
+                }
+            }
+        }
+
+        stage('k8s using ansible') {
+            steps {
+                dir('Ansible') {
+                    script {
+                        ansiblePlaybook(
+                            credentialsId: 'ssh',
+                            disableHostKeyChecking: true,
+                            installation: 'ansible',
+                            inventory: '/etc/ansible/',
+                            playbook: 'kube.yaml'
+                        )
+                    }
+                }
+            }
+        }
+
+    }
+}
+
+In the Kubernetes cluster give this command:
+```
+kubectl get all
+kubectl get svc
+```
+kubectl get all
+kubectl get svc
+```
+<worker-ip:serviceport>/jpetstore>
 ```
