@@ -1,12 +1,12 @@
 JPetStore
-=================
+=========
 JPetStore is a full web application built on top of MyBatis 3, Spring 5 and Stripes.
 This will describe the deployment process for a Java-based Petshop application using Jenkins as a CI/CD tool. This deployment uses Docker for containerization, Kubernetes for container orchestration, and includes various security measures and automation tools such as Terraform, SonarQube, Trivy, and Ansible. This project demonstrates a comprehensive approach to modern application deployment, with a focus on automation, security, and scalability.
 
 This project was an incredible learning experience that provided hands-on exposure to a variety of tools and technologies critical to modern DevOps practices.
 
   WARNING
-  ----------
+  -------
 Before proceeding, ensure you read and understand the code properly. Make necessary changes to variables such as GitHub repository URLs, credentials, DockerHub usernames etc. Failure to update these variables can affect the deployment process. Always double-check configurations and ensure they align with your environment.
 
  Project Overview
@@ -73,7 +73,7 @@ Detailed Step-by-Step Guide
 ===========================
 1.Step 1: Create an Ubuntu (22.04) T2 Large Instance using Terraform
 --------------------------------------------------------------------
-I am using Terraform IaC to launch an EC2 instance on AWS rather than doing traditionally, so I assume you know how to set up AWS CLI and use a Terraform. Create a main.tf file with the following Terraform configuration to provision an AWS EC2 instance:
+Us Terraform IaC to launch an EC2 instance on AWS. Create a main.tf file with the following Terraform configuration to provision an AWS EC2 instance:
 ```
 # Provider configuration
 provider "aws" {
@@ -165,7 +165,7 @@ echo "deb [signed-by=/etc/apt/trusted.gpg.d/trivy.gpg] https://aquasecurity.gith
 sudo apt update -y
 sudo apt install trivy -y
 
-#Rebbot system!!!
+#Reboot system!!!
 sudo reboot
 ```
 Since Apache Maven’s default proxy is 8080, we need to change the port of Jenkins from 8080 to let’s say 8090, for that:
@@ -173,30 +173,37 @@ Since Apache Maven’s default proxy is 8080, we need to change the port of Jenk
 sudo systemctl stop jenkins
 cd /etc/default
 sudo vi jenkins   #chnage port HTTP_PORT=8090 and save and exit
-
+```
+```
 cd /lib/systemd/system
 sudo vi jenkins.service  #change Environments="Jenkins_port=8090" save and exit
+```
+```
 sudo systemctl daemon-reload
 sudo systemctl restart jenkins
 ```
-Now, go to <EC2_Public_IP_Address:8090>
+Now, go to <EC2_Public_IP:8090>
 ```
 # for jenkins password
 sudo cat /var/lib/jenkins/secrets/initialAdminPassword
 # change the password once you set up jenkins server
 ```
 Install suggested plugins and creat user.
-![test](screen/test.PNG)
-After the docker installation, we create a SonarQube container:
+![jenkins](screen/jenkins.jpg)
+Then create a SonarQube container:
 ```
 docker run -d --name sonar -p 9000:9000 sonarqube:lts-community
 ```
-Now our SonarQube is up and running on <EC2_Public_IP_Address:9000>.
-Enter username <admin> and password <admin>, click on login and change password.
-screeen!!!!!!!!!!!!!!!!!
+Now our SonarQube is up and running on <EC2_Public_IP:9000>.
+Enter username and password, click on login and change password.
+```
+username admin
+password admin
+```
+![sonarqube](screen/sonar_qube.jpg)
 
 Step 3: Install Plugins in Jenkins
-------------------------------------
+----------------------------------
 In Jenkins, navigate to Manage Jenkins -> Available Plugins and install the following plugins:
 
 Eclipse Temurin Installer
@@ -206,8 +213,578 @@ OWASP Dependency-Check
 
 Configure Java and Maven in Global Tool Configuration
 Go to Manage Jenkins → Tools → Install JDK(17) and Maven3(3.6.0) → Click on Apply and Save
-screeen!!!!!!!!!!!!!!!!!
-screeen!!!!!!!!!!!!!!!!!
+
+![jdk_install](screen/jdk_install.jpg)
+![maven_install](screen/maven_install.jpg)
+
+Create a New Job with a Pipeline option and use script:
+```
+pipeline{
+    agent any
+    tools {
+        jdk 'jdk17'
+        maven 'maven3'
+    }
+    stages{
+        stage ('clean Workspace'){
+            steps{
+                cleanWs()
+            }
+        }
+        stage ('checkout scm') {
+            steps {
+                git 'https://github.com/Pavlo-1992/jpetstore'
+            }
+        }
+        stage ('maven compile') {
+            steps {
+                sh 'mvn clean compile'
+            }
+        }
+        stage ('maven Test') {
+            steps {
+                sh 'mvn test'
+            }
+        }
+   }
+}
+```
+Step 4: Configure SonarQube Server in Jenkins
+---------------------------------------------
+Since SonarQube operates on Port 9000, you can access it via <EC2_Public_IP>:9000.
+**To proceed, navigate to your SonarQube server, then follow these steps:
+**Click on Administration → Security → Users → Tokens. Next, update and copy the token by providing a name and clicking on Generate Token.
+
+![sonar_token](screen/sonar_token.jpg)
+
+Go to the Jenkins Dashboard, then navigate to Manage Jenkins → Credentials → Add Secret Text. The screen should look like this:
+
+![sonar_cred](screen/sonar_cred.jpg)
+
+Next, go to the Jenkins Dashboard, then navigate to Manage Jenkins → System, and add the necessary configuration as shown in the image below.
+
+![sonar_server](sonar_server.jpg)
+
+Click on apply and save
+Now, we will install a sonar scanner in the tools.
+
+![add_sonar_qube](screen/add_sonar_qube.jpg)
+
+Click on apply and save
+In the SonarQube Dashboard, add a quality gate by navigating to Administration → Configuration → Webhooks → Create.
+
+![sonar_webhook](screen/sonar_webhook.jpg)
+
+Now add this script in pipeline (Dashboard→ petstore→ configuration) and test the steps of SonarQube:
+```
+pipeline {
+    agent any
+
+    tools {
+        jdk 'jdk17'
+        maven 'maven3'
+    }
+
+    environment {
+        SCANNER_HOME = tool 'sonar-scanner'
+    }
+
+    stages {
+        stage('Clean Workspace') {
+            steps {
+                cleanWs()
+            }
+        }
+
+        stage('Checkout SCM') {
+            steps {
+                git 'https://github.com/Pavlo-1992/jpetstore'
+            }
+        }
+
+        stage('Maven Compile') {
+            steps {
+                sh 'mvn clean compile'
+            }
+        }
+
+        stage('Maven Test') {
+            steps {
+                sh 'mvn test'
+            }
+        }
+
+        stage('Sonarqube Analysis') {
+            steps {
+                withSonarQubeEnv('sonar-server') {
+                    sh ''' 
+                        $SCANNER_HOME/bin/sonar-scanner \
+                        -Dsonar.projectName=Petshop \
+                        -Dsonar.java.binaries=. \
+                        -Dsonar.projectKey=Petshop
+                    '''
+                }
+            }
+        }
+
+        stage('Quality Gate') {
+            steps {
+                script {
+                    waitForQualityGate abortPipeline: false, credentialsId: 'Sonar-token'
+                }
+            }
+        }
+    }
+}
+```
+
+Apply, save and build. Now, go to your SonarQube Server and go to project and see the result:
+
+![sonar_scan](screen/sonar_scan.jpg)
+
+Step 5: Install OWASP Dependency Check Plugins
+----------------------------------------------
+Go to the Jenkins Dashboard, then click on Manage Jenkins → Plugins. Find the OWASP Dependency-Check plugin, click on it, and install it.
+After installing the plugin, proceed to configure the tool by navigating to Dashboard → Manage Jenkins → Tools →.
+
+![Dp_Check](screen/DP_Check.jpg)
+
+Get an NVD API key. Register here: https://nvd.nist.gov/developers/request-an-api-key
+Save the key
+Add the key to Jenkins
+In Jenkins, go to Manage Jenkins → Credentials
+Create a new "Secret text":
+
+![NVD_API_KEY_cred](screen/NVD_API_KEY_cred.jpg)
+
+Add the script in pipeline:
+```
+pipeline {
+    agent any
+
+    tools {
+        jdk 'jdk17'
+        maven 'maven3'
+    }
+
+    environment {
+        SCANNER_HOME = tool 'sonar-scanner'
+    }
+
+    stages {
+        stage('Clean Workspace') {
+            steps {
+                cleanWs()
+            }
+        }
+
+        stage('Checkout SCM') {
+            steps {
+                git 'https://github.com/Pavlo-1992/jpetstore'
+            }
+        }
+
+        stage('Maven Compile') {
+            steps {
+                sh 'mvn clean compile'
+            }
+        }
+
+        stage('Maven Test') {
+            steps {
+                sh 'mvn test'
+            }
+        }
+
+        stage('Build war file') {
+            steps {
+                sh 'mvn clean install -DskipTests=true'
+            }
+        }
+
+        stage('Sonarqube Analysis') {
+            steps {
+                withSonarQubeEnv('sonar-server') {
+                    sh '''
+                        $SCANNER_HOME/bin/sonar-scanner \
+                        -Dsonar.projectName=Petshop \
+                        -Dsonar.projectKey=Petshop \
+                        -Dsonar.java.binaries=.
+                    '''
+                }
+            }
+        }
+
+        stage('Quality Gate') {
+            steps {
+                script {
+                    waitForQualityGate abortPipeline: false, credentialsId: 'Sonar-token'
+                }
+            }
+        }
+
+        stage('OWASP Dependency Check') {
+            steps {
+                withCredentials([string(credentialsId: 'NVD_API_KEY', variable: 'NVD_API_KEY')]) {
+                    dependencyCheck additionalArguments: "--scan ./ --format XML --nvdApiKey ${NVD_API_KEY}", odcInstallation: 'DP-Check'
+                    dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+                }
+            }
+        }
+    }
+}
+```
+You can see the report:
+
+![DP_Check_results](screen/DP_Check_results.jpg) !!!!!!!!!!!!!!!!!!!!!!!!!
+
+Step 6: Docker Set-up
+---------------------
+In Jenkins, navigate to Manage Jenkins -> Available Plugins and install these:
+- Docker - Docker Commons - Docker Pipeline - Docker API - docker-build-step
+
+Now, go to Dashboard → Manage Jenkins → Tools →
+
+![docker_add](screen/docker_add.jpg)
+
+Add DockerHub Username and Password (Access Token) in Global Credentials:
+
+![docker_creds](screen/docker_creds.jpg)
+
+Step 7: Adding Ansible Repository and Install Ansible
+-----------------------------------------------------
+Connect to your instance via SSH and run this commands, to install Ansible on your server:
+```
+sudo apt update -y
+sudo apt install software-properties-common -y
+sudo add-apt-repository --yes --update ppa:ansible/ansible
+sudo apt install ansible -y
+sudo apt install ansible-core -y
+```
+To add inventory you can create a new directory or add in the default Ansible hosts file
+```
+cd /etc/ansible
+sudo vi hosts
+```
+```
+[local]
+<Public_IP_Jenkins> ansible_user=ubuntu
+```
+save and exit.
+
+Install Ansible Plugins by navigating to Manage Jenkins -> Available Plugins.
+
+In Ansible server generete ssh-key:
+```
+cd ~/.ssh/
+sudo ssh-keygen -t rsa -b 2048 -f jpetstore_rsa
+```
+```
+cat jpetstore_rsa.pub >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+```
+
+Now add Credentials to invoke Ansible with Jenkins.
+![ssh_for_ansible](screen/ssh_for_ansible.jpg )
+In the Private key section, paste your jpetstore_rsa key file content directly.
+
+Check your Ansible path on the server by:
+```
+which ansible
+```
+copy the path and paste it here:
+
+![ansible](screen/ansible.jpg)
+
+Now, create an Ansible playbook that builds a Docker image, tags it, pushes it to Docker Hub, and then deploys it in a container using Ansible.
+
+It is already in github repo but you need to modify with your DockerHub credentials:
+
+![docker_yaml](screen/docker_yaml.jpg)
+
+Add the script in pipeline:
+```
+pipeline {
+    agent any
+
+    tools {
+        jdk 'jdk17'
+        maven 'maven3'
+    }
+
+    environment {
+        SCANNER_HOME = tool 'sonar-scanner'
+    }
+
+    stages {
+
+        stage('Clean Workspace') {
+            steps {
+                cleanWs()
+            }
+        }
+
+        stage('Checkout SCM') {
+            steps {
+                git 'https://github.com/Pavlo-1992/jpetstore'
+            }
+        }
+
+        stage('Maven Compile') {
+            steps {
+                sh 'mvn clean compile'
+            }
+        }
+
+        stage('Maven Test') {
+            steps {
+                sh 'mvn test'
+            }
+        }
+
+        stage('Build WAR') {
+            steps {
+                sh 'mvn clean install -DskipTests=true'
+            }
+        }
+
+        stage('Sonarqube Analysis') {
+            steps {
+                withSonarQubeEnv('sonar-server') {
+                    sh '''
+                        $SCANNER_HOME/bin/sonar-scanner \
+                        -Dsonar.projectName=Petshop \
+                        -Dsonar.projectKey=Petshop \
+                        -Dsonar.java.binaries=.
+                    '''
+                }
+            }
+        }
+
+        stage('Quality Gate') {
+            steps {
+                waitForQualityGate abortPipeline: false, credentialsId: 'Sonar-token'
+            }
+        }
+
+        stage('OWASP Dependency Check') {
+            steps {
+                withCredentials([string(credentialsId: 'NVD_API_KEY', variable: 'NVD_API_KEY')]) {
+                    dependencyCheck(
+                        additionalArguments: "--scan ./ --format XML --nvdApiKey ${NVD_API_KEY}",
+                        odcInstallation: 'DP-Check'
+                    )
+                    dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+                }
+            }
+        }
+
+        stage('Install Docker (Ansible)') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'DOCKER_HUB_CREDENTIALS',
+                        usernameVariable: 'DOCKER_HUB_USERNAME',
+                        passwordVariable: 'DOCKER_HUB_PASSWORD'
+                    )
+                ]) {
+                    dir('Ansible') {
+                        ansiblePlaybook(
+                            installation: 'ansible',
+                            playbook: 'docker.yaml',
+                            inventory: '/etc/ansible/hosts',
+                            disableHostKeyChecking: true,
+                            credentialsId: 'ssh',
+                            extraVars: [
+                                dockerhub_username: "${DOCKER_HUB_USERNAME}",
+                                dockerhub_password: "${DOCKER_HUB_PASSWORD}"
+                            ]
+                        )
+                    }
+                }
+            }
+        }
+
+    }
+}
+```
+
+Now after build process of the pipeline you would be able to see the result of web application by visiting the below url:
+
+jenkins-ip:8081>
+
+![jpetstore](screen/jpetstore.jpg)  
+
+Step 8: Kubernetes Setup
+------------------------
+Create two instance for Kubernetes Master-Slave set up, you can use the below terraform code:
+'''
+provider "aws" {
+  region = "eu-central-1" # Specify the region
+}
+
+resource "aws_instance" "my_ec2_instance1" {
+  ami           = "ami-0a854fe96e0b45e4e"  # Replace with a valid Ubuntu AMI ID for region
+  instance_type = "t2.medium"
+  key_name      = "key_name" # Replace with your actual key pair name
+  vpc_security_group_ids = ["sg-id"]  #Replace with security group ID that allows all inbound and outbound traffic
+
+  associate_public_ip_address = true
+
+  root_block_device {
+    volume_size = 8
+  }
+
+  tags = {
+    Name = "k8s-master"
+  }
+}
+
+resource "aws_instance" "my_ec2_instance2" {
+  ami           = "ami-0a854fe96e0b45e4e"  # Replace with a valid Ubuntu AMI ID for region
+  instance_type = "t2.medium"
+  key_name      = "key_name" # Replace with your actual key pair name
+  vpc_security_group_ids = ["sg-id"]  #Replace with security group ID that allows all inbound and outbound traffic
+
+  associate_public_ip_address = true
+
+  root_block_device {
+    volume_size = 8
+  }
+
+  tags = {
+    Name = "k8s-slave"
+  }
+}
+'''
+
+Install Kubectl and Minikube on Jenkins machine:
+```
+# Install required packages
+sudo apt-get update
+sudo apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
+
+# Add Kubernetes GPG key (modern method)
+sudo mkdir -p /etc/apt/keyrings
+curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | \
+  gpg --dearmor | sudo tee /etc/apt/keyrings/kubernetes-archive-keyring.gpg > /dev/null
+
+# Add Kubernetes repository (compatible with various Ubuntu versions)
+echo "deb [signed-by=/etc/apt/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" | \
+  sudo tee /etc/apt/sources.list.d/kubernetes.list
+
+# Update package list and install kubectl
+sudo apt-get update
+sudo apt-get install -y kubectl
+
+# Verify installation
+kubectl version --client
+
+# Install Minikube
+curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+sudo install minikube-linux-amd64 /usr/local/bin/minikube
+rm minikube-linux-amd64
+
+# Start Minikube
+minikube start
+```
+
+Now run this commands in both master and worker node:
+'''
+# 0. System update
+sudo apt-get update
+
+# 1. Disable SWAP (CRITICAL, BEFORE kubeadm)
+sudo swapoff -a
+sudo sed -i '/ swap / s/^/#/' /etc/fstab
+
+# 2. Configure kernel modules and sysctl (BEFORE containerd)
+# 2.1. Kernel modules
+sudo apt install -y linux-modules-extra-$(uname -r)
+
+cat <<EOF | sudo tee /etc/modules-load.d/k8s.conf
+br_netfilter
+EOF
+
+sudo modprobe br_netfilter
+
+# 2.2. Sysctl
+cat <<EOF | sudo tee /etc/sysctl.d/99-kubernetes.conf
+net.bridge.bridge-nf-call-iptables=1
+net.bridge.bridge-nf-call-ip6tables=1
+net.ipv4.ip_forward=1
+EOF
+
+sudo sysctl --system
+
+# 3. Install containerd (RECOMMENDED separately from Docker)
+# ❗ Docker is NOT REQUIRED for Kubernetes
+sudo apt install -y containerd
+
+# 3.1. Generate and fix config.toml
+sudo mkdir -p /etc/containerd
+containerd config default | sudo tee /etc/containerd/config.toml
+
+# Open the file:
+# sudo vi /etc/containerd/config.toml
+# Ensure SystemdCgroup is set to true:
+# [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
+# SystemdCgroup = true
+
+# 3.2. Restart and enable containerd
+sudo systemctl restart containerd
+sudo systemctl enable containerd
+sudo systemctl status containerd
+
+# 4. Configure crictl (IMPORTANT)
+sudo tee /etc/crictl.yaml <<EOF
+runtime-endpoint: unix:///run/containerd/containerd.sock
+image-endpoint: unix:///run/containerd/containerd.sock
+timeout: 10
+debug: false
+EOF
+
+# 5. Install Kubernetes components (kubeadm, kubelet, kubectl)
+# 5.1. Add official repository
+sudo mkdir -p /etc/apt/keyrings
+curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.28/deb/Release.key | \
+  sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] \
+https://pkgs.k8s.io/core:/stable:/v1.28/deb/ /" | \
+sudo tee /etc/apt/sources.list.d/kubernetes.list
+
+# 5.2. Install packages
+sudo apt update
+sudo apt install -y kubelet kubeadm kubectl
+sudo apt-mark hold kubelet kubeadm kubectl
+
+# 6. Reboot (RECOMMENDED)
+sudo reboot
+
+# 🔴 ALL COMMANDS BELOW SHOULD BE EXECUTED AFTER REBOOT (ON MASTER NODE)
+
+# 7. Initialize control-plane
+sudo kubeadm init \
+  --pod-network-cidr=10.244.0.0/16 \
+  --apiserver-advertise-address=172.31.41.84 \
+  --cri-socket=unix:///run/containerd/containerd.sock
+
+# 8. Configure kubectl (Non-root user)
+mkdir -p $HOME/.kube
+sudo cp /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+# Verification
+```
+In worker instance:
+```
+sudo kubeadm join 172.31.41.84:6443 --token qke2uv.ru6sgn0kz5poj9o8 --discovery-token-ca-cert-hash sha256:0564ad3c998f9495b39958522ac3ed053e9b663f44a6ac2ec06d5315413345f2
+```
+
+
+
+
 
 
 
