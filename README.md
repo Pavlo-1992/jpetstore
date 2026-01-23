@@ -252,8 +252,8 @@ Step 4: Configure SonarQube Server in Jenkins
 ---------------------------------------------
 Since SonarQube operates on Port 9000, you can access it via <EC2_Public_IP>:9000.
 
- **To proceed, navigate to your SonarQube server, then follow these steps:
-**Click on Administration → Security → Users → Tokens. Next, update and copy the token by providing a name and clicking on Generate Token.
+To proceed, navigate to your SonarQube server, then follow these steps:
+Click on Administration → Security → Users → Tokens. Next, update and copy the token by providing a name and clicking on Generate Token.
 
 ![sonar_token](screen/sonar_token.jpg)
 
@@ -271,7 +271,7 @@ Now, we will install a sonar scanner in the tools.
 ![add_sonar_qube](screen/add_sonar_qube.jpg)
 
 Click on apply and save
-In the SonarQube Dashboard, add a quality gate by navigating to Administration → Configuration → Webhooks → Create.
+In the SonarQube Dashboard, add a quality gate by navigating to Administration → Configuration → Webhooks → Create. Leave the secret box blank!!!
 
 ![sonar_webhook](screen/sonar_webhook.jpg)
 
@@ -452,7 +452,7 @@ Add DockerHub Username and Password (Access Token) in Global Credentials:
 
 Step 7: Adding Ansible Repository and Install Ansible.
 -----------------------------------------------------
-Connect to your instance via SSH and run this commands, to install Ansible on your server:
+Connect to your instance via SSH and run this commands, to install Ansible on your Jenkins server:
 ```
 sudo apt update -y
 sudo apt install software-properties-common -y
@@ -490,7 +490,7 @@ Check your Ansible path on the server by:
 ```
 which ansible
 ```
-copy the path and paste it here:
+Copy the path and paste it here:
 
 ![ansible](screen/ansible.jpg)
 
@@ -751,9 +751,10 @@ sudo reboot
 #Initialize control-plane
 sudo kubeadm init \
   --pod-network-cidr=10.244.0.0/16 \
-  --apiserver-advertise-address=<Private_ip_woker_node> \
+  --apiserver-advertise-address=<Private_ip_master_node> \
   --cri-socket=unix:///run/containerd/containerd.sock
-
+```
+```
 #Configure kubectl (Non-root user)
 mkdir -p $HOME/.kube
 sudo cp /etc/kubernetes/admin.conf $HOME/.kube/config
@@ -761,10 +762,31 @@ sudo chown $(id -u):$(id -g) $HOME/.kube/config
 
 #Verification
 ```
-In worker instance:
+Check:
+```
+kubectl get nodes
+```
+(will be NotReady - this is NORMAL)
+
+Installing CNI (Flannel)
+```
+kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
+```
+After 30-60 seconds:
+```
+kubectl get nodes
+```
+Waiting for:
+STATUS: Ready
+
+Then:
+````
+kubeadm token create --print-join-command
+```
+Copy and in worker instance:
 -------------------
 ```
-sudo kubeadm join <master-node-ip>:<master-node-port> --token <token> --discovery-token-ca-cert-hash <hash>
+sudo kubeadm join <Private_ip_master_node>:<master-node-port> --token <token> --discovery-token-ca-cert-hash <hash>
 ```
 On master instanse:
 ```
@@ -787,24 +809,34 @@ Now, go to Manage Jenkins –> Credentials –>System–> Global Credential–> 
 
 Step 9: Master-Slave Setup for Ansible and Kubernetes
 -----------------------------------------------------
-To enable communication with the Kubernetes clients, we need to create an SSH key on the Ansible node and share it with the Kubernetes master system.
-On main (on which we are running jenkins, not the master-worker) instance:
+To enable communication with Kubernetes clients, we need to create an SSH key on the Jenkins node and provide it to the Kubernetes master, or we can use the key we created earlier. We will use the key we created earlier - jpetstore_rsa.
 
+On main (on which we are running jenkins, not the master-worker) instance:
 ```
-cd ~/.ssh
-ssh-keygen
-cat id_ed25519.pub
+sudo chown ubuntu:ubuntu ~/.ssh/jpetstore_rsa ~/.ssh/jpetstore_rsa.pub
 ```
+chmod 600 ~/.ssh/jpetstore_rsa
+chmod 644 ~/.ssh/jpetstore_rsa.pub
+chmod 700 ~/.ssh
+```
+```
+cat ~/.ssh/jpetstore_rsa.pub
+```
+
 After copying the public key from the Jenkins Machine, navigate to the .ssh directory on the Kubernetes master machine and paste the copied public key into the authorized_keys file.
 ```
-cd .ssh #on k8s master 
-sudo vi authorized_keys
+sudo vi ~/.ssh/authorized_keys #past at the end jpetstore_rsa.pub
+```
+Then:
+```
+chmod 700 ~/.ssh
+chmod 600 ~/.ssh/authorized_keys
 ```
 Note: Add the copied public key as a new line in the authorized_keys file without deleting any existing keys, then save and exit.
 
-By adding the public key from the main to the Kubernetes machine, keyless access is now configured. To verify, try accessing the Kubernetes master using the following command format.
+By adding the public key from the Jenkins to the Kubernetes machine, keyless access is now configured. To verify, try accessing the Kubernetes master using the following command format.
 ```
-ssh ubuntu@<public-ip-k8s-master>  #from Jenkins Machine
+ssh -i ~/.ssh/jpetstore_rsa ubuntu@<public-ip-k8s-master>  #from Jenkins Machine
 ```
 
 Now, open the hosts file on the Jenkins Machine and add the public IP of the Kubernetes master.
@@ -815,7 +847,7 @@ public ip of k8s-master ansible_user=ubuntu
 ```
 Test Ansible Master Slave Connection
 ```
-ansible -m ping all #on jenkins instance
+ansible -i /etc/ansible/hosts all -m ping --private-key=~/.ssh/jpetstore_rsa #on jenkins instance
 ```
 
 Add finaly pipeline and build the job:
@@ -947,5 +979,6 @@ kubectl get svc
 ```
 <public_worker_ip:serviceport>/jpetstore>
 ```
-![k8s_creds](screen/k8s_creeds.jpg) 
+![k8s_jpetstore](screen/k8s_jpetstore.jpg) 
 
+11111111111111
