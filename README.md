@@ -607,7 +607,7 @@ pipeline {
 }
 ```
 
-Now after build process of the pipeline you would be able to see the result of web application by visiting the below url <jenkins-ip:8081>
+After build process of the pipeline you would be able to see the result of web application by visiting the below url <jenkins-ip:8081>/jpetstore
 
 ![jpetstore_jenkins](screen/jpetstore_jenkins.jpg)  
 
