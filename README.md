@@ -948,4 +948,4 @@ kubectl get svc
 <public_worker_ip:serviceport>/jpetstore>
 ```
 ![k8s_creds](screen/k8s_creeds.jpg) 
-111111111111
+
