@@ -435,7 +435,7 @@ pipeline {
 ```
 You can see the report:
 
-![dp_check_results](screen/DP_Check_results.jpg)
+![dp_check_results](screen/dp_check_results.jpg)
 
 Step 6: Docker Set-up
 ---------------------
@@ -948,3 +948,4 @@ kubectl get svc
 <public_worker_ip:serviceport>/jpetstore>
 ```
 ![k8s_creds](screen/k8s_creeds.jpg) 
+111111111111
