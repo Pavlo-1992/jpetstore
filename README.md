@@ -813,6 +813,7 @@ On main (on which we are running jenkins, not the master-worker) instance:
 ```
 sudo chown ubuntu:ubuntu ~/.ssh/jpetstore_rsa ~/.ssh/jpetstore_rsa.pub
 ```
+```
 chmod 600 ~/.ssh/jpetstore_rsa
 chmod 644 ~/.ssh/jpetstore_rsa.pub
 chmod 700 ~/.ssh
