@@ -759,8 +759,6 @@ sudo kubeadm init \
 mkdir -p $HOME/.kube
 sudo cp /etc/kubernetes/admin.conf $HOME/.kube/config
 sudo chown $(id -u):$(id -g) $HOME/.kube/config
-
-#Verification
 ```
 Check:
 ```
@@ -824,6 +822,7 @@ cat ~/.ssh/jpetstore_rsa.pub
 ```
 
 After copying the public key from the Jenkins Machine, navigate to the .ssh directory on the Kubernetes master machine and paste the copied public key into the authorized_keys file.
+Note: Add the copied public key as a new line in the authorized_keys file without deleting any existing keys, past at the end jpetstore_rsa.pub then save and exit.
 ```
 sudo vi ~/.ssh/authorized_keys #past at the end jpetstore_rsa.pub
 ```
@@ -832,7 +831,6 @@ Then:
 chmod 700 ~/.ssh
 chmod 600 ~/.ssh/authorized_keys
 ```
-Note: Add the copied public key as a new line in the authorized_keys file without deleting any existing keys, then save and exit.
 
 By adding the public key from the Jenkins to the Kubernetes machine, keyless access is now configured. To verify, try accessing the Kubernetes master using the following command format.
 ```
@@ -972,13 +970,19 @@ pipeline {
     }
 }
 ```
-In the Kubernetes cluster give this command:
+In the Kubernetes cluster (on master) give this command:
 ```
 kubectl get all
 kubectl get svc
 ```
+Then go to:
+```
 <public_worker_ip:serviceport>/jpetstore>
 ```
+Your mast see:
+
 ![k8s_jpetstore](screen/k8s_jpetstore.jpg) 
 
-11111111111111
+Conclusion!
+------------
+By following these steps, we successfully deployed a Java-based Petshop application using Jenkins, Docker, Kubernetes, Terraform, SonarQube, Trivy, and Ansible. This project not only demonstrates a comprehensive approach to modern application deployment but also highlights the importance of automation and security in the DevOps pipeline.
