@@ -435,7 +435,7 @@ pipeline {
 ```
 You can see the report:
 
-![dp_check_results](screen/dp_check_results.jpg)
+![dp_check_results](screen/DP_Check_results.jpg)
 
 Step 6: Docker Set-up
 ---------------------
