@@ -778,7 +778,7 @@ Waiting for:
 STATUS: Ready
 
 Then:
-````
+```
 kubeadm token create --print-join-command
 ```
 Copy and in worker instance:
