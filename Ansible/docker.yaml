@@ -29,6 +29,7 @@
         source: build
         build:
           path: /home/ubuntu/petstore
+          nocache: true
         push: true
 
     - name: Remove old container (if exists)
