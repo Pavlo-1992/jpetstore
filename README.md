@@ -205,10 +205,10 @@ Step 3: Install Plugins in Jenkins
 ----------------------------------
 In Jenkins, navigate to Manage Jenkins -> Available Plugins and install the following plugins:
 
-Eclipse Temurin Installer
-SonarQube Scanner
-Maven Integration
-OWASP Dependency-Check
+- Eclipse Temurin Installer
+- SonarQube Scanner
+- Maven Integration
+- OWASP Dependency-Check
 
 Configure Java and Maven in Global Tool Configuration
 Go to Manage Jenkins → Tools → Install JDK(17) and Maven3(3.6.0) → Click on Apply and Save
@@ -251,7 +251,8 @@ pipeline{
 Step 4: Configure SonarQube Server in Jenkins
 ---------------------------------------------
 Since SonarQube operates on Port 9000, you can access it via <EC2_Public_IP>:9000.
-**To proceed, navigate to your SonarQube server, then follow these steps:
+
+ **To proceed, navigate to your SonarQube server, then follow these steps:
 **Click on Administration → Security → Users → Tokens. Next, update and copy the token by providing a name and clicking on Generate Token.
 
 ![sonar_token](screen/sonar_token.jpg)
@@ -329,7 +330,7 @@ pipeline {
         stage('Quality Gate') {
             steps {
                 script {
-                    waitForQualityGate abortPipeline: false, credentialsId: 'Sonar-token'
+                    waitForQualityGate abortPipeline: false, credentialsId: 'sonar-token'
                 }
             }
         }
@@ -345,7 +346,7 @@ Step 5: Install OWASP Dependency Check Plugins
 ----------------------------------------------
 Proceed to configure the tool by navigating to Dashboard → Manage Jenkins → Tools →.
 
-![Dp_Check](screen/DP_Check.jpg)
+![dp_check](screen/dp_check.jpg)
 
 Get an NVD API key. Register here: https://nvd.nist.gov/developers/request-an-api-key
 Save the key
@@ -353,7 +354,7 @@ Add the key to Jenkins
 In Jenkins, go to Manage Jenkins → Credentials
 Create a new "Secret text":
 
-![NVD_API_KEY_cred](screen/NVD_API_KEY_cred.jpg)
+![nvd_api_key_cred](screen/nvd_api_key_cred.jpg)
 
 Add the script in pipeline:
 ```
@@ -416,15 +417,15 @@ pipeline {
         stage('Quality Gate') {
             steps {
                 script {
-                    waitForQualityGate abortPipeline: false, credentialsId: 'Sonar-token'
+                    waitForQualityGate abortPipeline: false, credentialsId: 'sonar-token'
                 }
             }
         }
 
         stage('OWASP Dependency Check') {
             steps {
-                withCredentials([string(credentialsId: 'NVD_API_KEY', variable: 'NVD_API_KEY')]) {
-                    dependencyCheck additionalArguments: "--scan ./ --format XML --nvdApiKey ${NVD_API_KEY}", odcInstallation: 'DP-Check'
+                withCredentials([string(credentialsId: 'nvd_api_key', variable: 'nvd_api_key')]) {
+                    dependencyCheck additionalArguments: "--scan ./ --format XML --nvdApiKey ${nvd_api_key}", odcInstallation: 'dp-check'
                     dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
                 }
             }
@@ -434,7 +435,7 @@ pipeline {
 ```
 You can see the report:
 
-![DP_Check_results](screen/DP_Check_results.jpg)
+![dp_check_results](screen/dp_check_results.jpg)
 
 Step 6: Docker Set-up
 ---------------------
@@ -461,8 +462,7 @@ sudo apt install ansible-core -y
 ```
 To add inventory you can create a new directory or add in the default Ansible hosts file:
 ```
-cd /etc/ansible
-sudo vi hosts
+sudo vi /etc/ansible/hosts
 ```
 ```
 [local]
@@ -482,7 +482,7 @@ cat jpetstore_rsa.pub >> ~/.ssh/authorized_keys
 chmod 600 ~/.ssh/authorized_keys
 ```
 
-Now add Credentials to invoke Ansible with Jenkins.
+Now add Credentials to invoke Ansible with Jenkins (private key - jpetstore_rsa ).
 ![ssh_for_ansible](screen/ssh_for_ansible.jpg )
 In the Private key section, paste your jpetstore_rsa key file content directly.
 
@@ -561,16 +561,16 @@ pipeline {
 
         stage('Quality Gate') {
             steps {
-                waitForQualityGate abortPipeline: false, credentialsId: 'Sonar-token'
+                waitForQualityGate abortPipeline: false, credentialsId: 'sonar-token'
             }
         }
 
         stage('OWASP Dependency Check') {
             steps {
-                withCredentials([string(credentialsId: 'NVD_API_KEY', variable: 'NVD_API_KEY')]) {
+                withCredentials([string(credentialsId: 'nvd_api_key', variable: 'nvd_api_key')]) {
                     dependencyCheck(
-                        additionalArguments: "--scan ./ --format XML --nvdApiKey ${NVD_API_KEY}",
-                        odcInstallation: 'DP-Check'
+                        additionalArguments: "--scan ./ --format XML --nvdApiKey ${nvd_api_key}",
+                        odcInstallation: 'dp-check'
                     )
                     dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
                 }
@@ -879,16 +879,16 @@ pipeline {
 
         stage('Quality Gate') {
             steps {
-                waitForQualityGate abortPipeline: false, credentialsId: 'Sonar-token'
+                waitForQualityGate abortPipeline: false, credentialsId: 'sonar-token'
             }
         }
 
         stage('OWASP Dependency Check') {
             steps {
-                withCredentials([string(credentialsId: 'NVD_API_KEY', variable: 'NVD_API_KEY')]) {
+                withCredentials([string(credentialsId: 'nvd_api_key', variable: 'nvd_api_key')]) {
                     dependencyCheck(
-                        additionalArguments: "--scan ./ --format XML --nvdApiKey ${NVD_API_KEY}",
-                        odcInstallation: 'DP-Check'
+                        additionalArguments: "--scan ./ --format XML --nvdApiKey ${nvd_api_key}",
+                        odcInstallation: 'dp-check'
                     )
                     dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
                 }
