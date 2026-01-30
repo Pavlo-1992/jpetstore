@@ -1,0 +1,23 @@
+---
+- name: Deploy Kubernetes Application
+  hosts: k8s
+  become: yes
+  gather_facts: yes
+
+  vars:
+    kube_manifest_path: /home/ubuntu/deployment.yaml
+
+  tasks:
+
+    - name: Copy deployment.yaml to Kubernetes master
+      copy:
+        src: ../deployment.yaml
+        dest: "{{ kube_manifest_path }}"
+        owner: ubuntu
+        group: ubuntu
+        mode: '0644'
+
+    - name: Apply Kubernetes manifest
+      command: kubectl apply -f "{{ kube_manifest_path }}"
+      environment:
+        KUBECONFIG: /home/ubuntu/.kube/config
